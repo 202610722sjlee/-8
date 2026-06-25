@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 사이버 파이터 아레나</title>
+    <!-- Tailwind CSS (UI 스타일링용) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js (3D 그래픽 엔진) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@400;700&display=swap');
+        body {
+            font-family: 'Orbitron', 'Noto Sans KR', sans-serif;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            background-color: #05050a;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .text-neon-cyan {
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.8), 0 0 20px rgba(6, 182, 212, 0.4);
+        }
+        .text-neon-pink {
+            text-shadow: 0 0 10px rgba(244, 63, 94, 0.8), 0 0 20px rgba(244, 63, 94, 0.4);
+        }
+        .border-neon-cyan {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
+            border-color: rgba(6, 182, 212, 0.8);
+        }
+        .border-neon-pink {
+            box-shadow: 0 0 15px rgba(244, 63, 94, 0.5);
+            border-color: rgba(244, 63, 94, 0.8);
+        }
+        .neon-btn-active-easy {
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.6);
+            border-color: rgba(16, 185, 129, 1);
+            background-color: rgba(16, 185, 129, 0.15);
+        }
+        .neon-btn-active-normal {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.6);
+            border-color: rgba(6, 182, 212, 1);
+            background-color: rgba(6, 182, 212, 0.15);
+        }
+        .neon-btn-active-hard {
+            box-shadow: 0 0 15px rgba(244, 63, 94, 0.6);
+            border-color: rgba(244, 63, 94, 1);
+            background-color: rgba(244, 63, 94, 0.15);
+        }
+        @keyframes gauge-pulse {
+            0%, 100% { filter: drop-shadow(0 0 2px rgba(234, 179, 8, 0.4)); opacity: 0.8; }
+            50% { filter: drop-shadow(0 0 12px rgba(234, 179, 8, 1)); opacity: 1; }
+        }
+        .gauge-ready {
+            animation: gauge-pulse 0.8s infinite;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen">
+
+    <!-- 1. 캐릭터 및 모드 선택 화면 -->
+    <div id="character-select" class="absolute inset-0 z-50 flex flex-col items-center justify-between bg-slate-950 bg-gradient-to-b from-slate-950 to-slate-900 p-6 text-white overflow-y-auto">
+        <div class="text-center mt-4">
+            <h1 class="text-4xl md:text-5xl font-extrabold tracking-widest text-cyan-400 text-neon-cyan mb-1">CYBER FIGHTER 3D</h1>
+            <p id="selection-prompt" class="text-amber-400 text-sm font-bold tracking-wide animate-pulse">먼저 대전 모드를 선택해 주세요</p>
+        </div>
+
+        <!-- 게임 설정 및 스테이지 선택 영역 -->
+        <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-4 my-2 px-4">
+            <!-- 게임 모드 대분류 -->
+            <div class="bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+                <h2 class="text-center text-xs font-bold tracking-wider text-gray-300 uppercase mb-3">🎮 대전 모드 설정</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="selectGameMode('vs-ai')" id="btn-mode-ai" class="py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-xs text-gray-400 hover:text-cyan-400 hover:border-cyan-500/50 transition-all duration-300 neon-btn-active-normal text-cyan-400">
+                        1인용 (vs AI)
+                    </button>
+                    <button onclick="selectGameMode('vs-player')" id="btn-mode-player" class="py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-xs text-gray-400 hover:text-rose-400 hover:border-rose-500/50 transition-all duration-300">
+                        2인용 (로컬 대결)
+                    </button>
+                </div>
+            </div>
+
+            <!-- AI 난이도 설정 -->
+            <div id="ai-difficulty-box" class="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 transition-opacity duration-300">
+                <h2 class="text-center text-xs font-bold tracking-wider text-gray-300 uppercase mb-3">⚡ 컴퓨터 AI 난이도</h2>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="selectDifficulty('easy')" id="btn-diff-easy" class="py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-[11px] text-gray-400 hover:text-emerald-400 transition-all">
+                        하 (쉬움)
+                    </button>
+                    <button onclick="selectDifficulty('normal')" id="btn-diff-normal" class="py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-[11px] text-gray-400 hover:text-cyan-400 neon-btn-active-normal text-cyan-400 transition-all">
+                        중 (보통)
+                    </button>
+                    <button onclick="selectDifficulty('hard')" id="btn-diff-hard" class="py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-[11px] text-gray-400 hover:text-rose-400 transition-all">
+                        상 (어려움)
+                    </button>
+                </div>
+            </div>
+
+            <!-- 대결 장소 스테이지 선택 -->
+            <div class="bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+                <h2 class="text-center text-xs font-bold tracking-wider text-gray-300 uppercase mb-3">🏟️ 대결 장소 (스테이지) 선택</h2>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="selectStage(0)" id="btn-stage-0" class="py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-[11px] text-gray-400 hover:text-cyan-400 hover:border-cyan-500/50 transition-all duration-300 neon-btn-active-normal text-cyan-400">
+                        사이버 도조
+                    </button>
+                    <button onclick="selectStage(1)" id="btn-stage-1" class="py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-[11px] text-gray-400 hover:text-orange-500 hover:border-orange-500/50 transition-all duration-300">
+                        네온 볼케이노
+                    </button>
+                    <button onclick="selectStage(2)" id="btn-stage-2" class="py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-[11px] text-gray-400 hover:text-violet-400 hover:border-violet-400/50 transition-all duration-300">
+                        메트로 루프탑
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 캐릭터 카드 목록 (8인 체제 반응형 배치) -->
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 my-4 max-w-7xl w-full px-4">
+            <!-- 캐릭터 1: 프로토-A -->
+            <div onclick="clickCharacterCard(0)" class="char-card group cursor-pointer relative bg-slate-900/90 border-2 border-slate-700 hover:border-cyan-400 rounded-xl overflow-hidden p-3 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl flex flex-col justify-between">
+                <div class="absolute inset-0 bg-gradient-to-t from-cyan-950/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div>
+                    <div class="h-16 flex items-center justify-center mb-1">
+                        <svg class="w-12 h-12 text-cyan-400 transition-transform group-hover:scale-110 duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xs md:text-sm font-bold text-center group-hover:text-cyan-400 transition-colors">프로토-A (블루)</h3>
+                    <p class="text-[9px] text-gray-400 text-center mt-1 h-12 overflow-hidden leading-tight">특격: <b>레이저 슬래시</b> (초고속 대시 참격)</p>
+                </div>
+                <div class="mt-2 flex justify-between text-[8px] text-cyan-300 font-semibold border-t border-slate-800 pt-1.5">
+                    <span>공격: ★★★★☆</span>
+                    <span>방어: ★★★★☆</span>
+                </div>
+            </div>
+
+            <!-- 캐릭터 2: 볼트-X -->
+            <div onclick="clickCharacterCard(1)" class="char-card group cursor-pointer relative bg-slate-900/90 border-2 border-slate-700 hover:border-amber-500 rounded-xl overflow-hidden p-3 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl flex flex-col justify-between">
+                <div class="absolute inset-0 bg-gradient-to-t from-amber-950/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div>
+                    <div class="h-16 flex items-center justify-center mb-1">
+                        <svg class="w-12 h-12 text-amber-500 transition-transform group-hover:scale-110 duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xs md:text-sm font-bold text-center group-hover:text-amber-500 transition-colors">볼트-X (골드)</h3>
+                    <p class="text-[9px] text-gray-400 text-center mt-1 h-12 overflow-hidden leading-tight">특격: <b>기가 썬더</b> (지면 진동 벼락 대폭발)</p>
+                </div>
+                <div class="mt-2 flex justify-between text-[8px] text-amber-400 font-semibold border-t border-slate-800 pt-1.5">
+                    <span>공격: ★★★★★</span>
+                    <span>방어: ★★★☆☆</span>
+                </div>
+            </div>
+
+            <!-- 캐릭터 3: 이더-S -->
+            <div onclick="clickCharacterCard(2)" class="char-card group cursor-pointer relative bg-slate-900/90 border-2 border-slate-700 hover:border-emerald-400 rounded-xl overflow-hidden p-3 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl flex flex-col justify-between">
+                <div class="absolute inset-0 bg-gradient-to-t from-emerald-950/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div>
+                    <div class="h-16 flex items-center justify-center mb-1">
+                        <svg class="w-12 h-12 text-emerald-400 transition-transform group-hover:scale-110 duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xs md:text-sm font-bold text-center group-hover:text-emerald-400 transition-colors">이더-S (그린)</h3>
+                    <p class="text-[9px] text-gray-400 text-center mt-1 h-12 overflow-hidden leading-tight">특격: <b>에메랄드 버스트</b> (자가 회복 및 충격 파동)</p>
+                </div>
+                <div class="mt-2 flex justify-between text-[8px] text-emerald-300 font-semibold border-t border-slate-800 pt-1.5">
+                    <span>공격: ★★★☆☆</span>
+                    <span>방어: ★★★★★</span>
+                </div>
+            </div>
+
+            <!-- 캐릭터 4: 네온-V -->
+            <div onclick="clickCharacterCard(3)" class="char-card group cursor-pointer relative bg-slate-900/90 border-2 border-slate-700 hover:border-rose-400 rounded-xl overflow-hidden p-3 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl flex flex-col justify-between">
+                <div class="absolute inset-0 bg-gradient-to-t from-rose-950/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div>
+                    <div class="h-16 flex items-center justify-center mb-1">
+                        <svg class="w-12 h-12 text-rose-400 transition-transform group-hover:scale-110 duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xs md:text-sm font-bold text-center group-hover:text-rose-400 transition-colors">네온-V (핑크)</h3>
+                    <p class="text-[9px] text-gray-400 text-center mt-1 h-12 overflow-hidden leading-tight">특격: <b>플라즈마 미라지</b> (초고속 전방 분신 폭풍 연타)</p>
+                </div>
+                <div class="mt-2 flex justify-between text-[8px] text-rose-300 font-semibold border-t border-slate-800 pt-1.5">
+                    <span>공격: ★★★★☆</span>
+                    <span>방어: ★★★☆☆</span>
+                </div>
+            </div>
+
+            <!-- 캐릭터 5: 섀도우-Z -->
+            <div onclick="clickCharacterCard(4)" class="char-card group cursor-pointer relative bg-slate-900/90 border-2 border-slate-700 hover:border-violet-400 rounded-xl overflow-hidden p-3 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl flex flex-col justify-between">
+                <div class="absolute inset-0 bg-gradient-to-t from-violet-950/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div>
+                    <div class="h-16 flex items-center justify-center mb-1">
+                        <svg class="w-12 h-12 text-violet-400 transition-transform group-hover:scale-110 duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xs md:text-sm font-bold text-center group-hover:text-violet-400 transition-colors">섀도우-Z (퍼플)</h3>
+                    <p class="text-[9px] text-gray-400 text-center mt-1 h-12 overflow-hidden leading-tight">특격: <b>보이드 스핀</b> (어둠의 에너지를 해방하는 회격)</p>
+                </div>
+                <div class="mt-2 flex justify-between text-[8px] text-violet-300 font-semibold border-t border-slate-800 pt-1.5">
+                    <span>공격: ★★★★☆</span>
+                    <span>방어: ★★★★☆</span>
+                </div>
+            </div>
+
+            <!-- 캐릭터 6: 블레이즈-F -->
+            <div onclick="clickCharacterCard(5)" class="char-card group cursor-pointer relative bg-slate-900/90 border-2 border-slate-700 hover:border-red-500 rounded-xl overflow-hidden p-3 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl flex flex-col justify-between">
+                <div class="absolute inset-0 bg-gradient-to-t from-red-950/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div>
+                    <div class="h-16 flex items-center justify-center mb-1">
+                        <svg class="w-12 h-12 text-red-500 transition-transform group-hover:scale-110 duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xs md:text-sm font-bold text-center group-hover:text-red-500 transition-colors">블레이즈-F (레드)</h3>
+                    <p class="text-[9px] text-gray-400 text-center mt-1 h-12 overflow-hidden leading-tight">특격: <b>크림슨 임팩트</b> (가드 붕괴 지면 폭염 강타)</p>
+                </div>
+                <div class="mt-2 flex justify-between text-[8px] text-red-400 font-semibold border-t border-slate-800 pt-1.5">
+                    <span>공격: ★★★★★</span>
+                    <span>방어: ★★☆☆☆</span>
+                </div>
+            </div>
+
+            <!-- 캐릭터 7: 프로스트-Q (신규 얼음 기체) -->
+            <div onclick="clickCharacterCard(6)" class="char-card group cursor-pointer relative bg-slate-900/90 border-2 border-slate-700 hover:border-sky-400 rounded-xl overflow-hidden p-3 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl flex flex-col justify-between">
+                <div class="absolute inset-0 bg-gradient-to-t from-sky-950/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div>
+                    <div class="h-16 flex items-center justify-center mb-1">
+                        <svg class="w-12 h-12 text-sky-400 transition-transform group-hover:scale-110 duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xs md:text-sm font-bold text-center group-hover:text-sky-400 transition-colors">프로스트-Q (아쿠아)</h3>
+                    <p class="text-[9px] text-gray-400 text-center mt-1 h-12 overflow-hidden leading-tight">특격: <b>블리자드 스톰</b> (전방 절대영도 냉기 폭풍 참격)</p>
+                </div>
+                <div class="mt-2 flex justify-between text-[8px] text-sky-300 font-semibold border-t border-slate-800 pt-1.5">
+                    <span>공격: ★★★★☆</span>
+                    <span>방어: ★★★★☆</span>
+                </div>
+            </div>
+
+            <!-- 캐릭터 8: 코스모-W (신규 우주 실버 기체) -->
+            <div onclick="clickCharacterCard(7)" class="char-card group cursor-pointer relative bg-slate-900/90 border-2 border-slate-700 hover:border-slate-300 rounded-xl overflow-hidden p-3 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-2xl flex flex-col justify-between">
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div>
+                    <div class="h-16 flex items-center justify-center mb-1">
+                        <svg class="w-12 h-12 text-slate-300 transition-transform group-hover:scale-110 duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.857L13 21l-2.286-6.857L5 12l5.714-2.857L13 3z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xs md:text-sm font-bold text-center group-hover:text-slate-300 transition-colors">코스모-W (실버)</h3>
+                    <p class="text-[9px] text-gray-400 text-center mt-1 h-12 overflow-hidden leading-tight">특격: <b>노바 익스플로전</b> (공간 광자 압축 은백색 초신성 대폭발)</p>
+                </div>
+                <div class="mt-2 flex justify-between text-[8px] text-slate-400 font-semibold border-t border-slate-800 pt-1.5">
+                    <span>공격: ★★★★☆</span>
+                    <span>방어: ★★★★☆</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 하단 조작법 안내 (양쪽 가이드) -->
+        <div class="mb-2 bg-slate-900/80 border border-slate-800 rounded-xl p-4 max-w-4xl w-full flex flex-col md:flex-row gap-6 items-center justify-around text-xs">
+            <div class="w-full md:w-1/2">
+                <span class="text-cyan-400 font-bold block mb-1">🎮 플레이어 1P 조작 (왼쪽 시작)</span>
+                <span class="text-gray-300">이동: A (좌) / D (우) / W (점프)</span><br>
+                <span class="text-gray-300">공격: F (잽) / G (헤비) / R (킥) | <b class="text-amber-400">E (초특수 기술)</b></span>
+            </div>
+            <div class="border-l border-slate-800 h-12 hidden md:block"></div>
+            <div class="w-full md:w-1/2">
+                <span class="text-rose-400 font-bold block mb-1">🕹️ 플레이어 2P 조작 (오른쪽 시작)</span>
+                <span class="text-gray-300">이동: ← (좌) / → (우) / ↑ (점프)</span><br>
+                <span class="text-gray-300">공격: J (잽) / K (헤비) / L (킥) | <b class="text-amber-400">O (초특수 기술)</b></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 게임 메인 HUD 레이어 -->
+    <div id="game-hud" class="absolute inset-0 z-40 pointer-events-none hidden flex flex-col justify-between p-4 md:p-8">
+        
+        <!-- 상단 체력바 및 필살기 게이지 영역 -->
+        <div class="flex items-center justify-between w-full max-w-5xl mx-auto mt-2">
+            <!-- 1P 플레이어 정보 및 게이지 (왼쪽) -->
+            <div class="flex flex-col w-[40%]">
+                <div class="flex justify-between items-end mb-1">
+                    <span id="p1-name" class="text-cyan-400 font-black text-lg md:text-2xl text-neon-cyan tracking-wider">PLAYER 1</span>
+                    <span id="p1-action" class="text-[10px] md:text-xs text-slate-400 bg-slate-900/60 px-2 py-0.5 rounded uppercase">IDLE</span>
+                </div>
+                <!-- 체력바 -->
+                <div class="w-full bg-slate-950/80 border-2 border-neon-cyan h-6 md:h-8 rounded-tl-md overflow-hidden flex justify-end">
+                    <div id="p1-health" class="bg-gradient-to-l from-cyan-400 to-indigo-600 h-full w-full transition-all duration-100 origin-right"></div>
+                </div>
+                <!-- 기 게이지 -->
+                <div class="w-full bg-slate-950/80 border border-cyan-800 h-3 mt-1 rounded-bl-md overflow-hidden flex justify-end relative">
+                    <div id="p1-energy" class="bg-amber-400 h-full w-0 transition-all duration-100 origin-right"></div>
+                    <div id="p1-energy-text" class="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white tracking-widest uppercase">EX 0%</div>
+                </div>
+                <!-- 콤보 카운트 -->
+                <div id="p1-combo" class="text-amber-400 font-extrabold text-sm md:text-xl italic mt-1 h-6 transition-all duration-200 transform scale-0 origin-left">0 HIT!</div>
+            </div>
+
+            <!-- 중앙 타이머 / 라운드 및 대전 모드 표시 -->
+            <div class="flex flex-col items-center px-4">
+                <div id="hud-difficulty-tag" class="font-black text-[10px] tracking-widest bg-slate-950/80 px-3 py-1 border rounded-full mb-1">NORMAL</div>
+                <div id="game-timer" class="text-white font-extrabold text-3xl md:text-5xl bg-slate-950/90 border-2 border-slate-800 w-16 md:w-20 h-16 md:h-20 rounded-full flex items-center justify-center tracking-tight shadow-inner">99</div>
+            </div>
+
+            <!-- 2P 플레이어 정보 및 게이지 (오른쪽) -->
+            <div class="flex flex-col w-[40%]">
+                <div class="flex justify-between items-end mb-1 flex-row-reverse">
+                    <span id="p2-name" class="text-rose-500 font-black text-lg md:text-2xl text-neon-pink tracking-wider">PLAYER 2</span>
+                    <span id="p2-action" class="text-[10px] md:text-xs text-slate-400 bg-slate-900/60 px-2 py-0.5 rounded uppercase">IDLE</span>
+                </div>
+                <!-- 체력바 -->
+                <div class="w-full bg-slate-950/80 border-2 border-neon-pink h-6 md:h-8 rounded-tr-md overflow-hidden">
+                    <div id="p2-health" class="bg-gradient-to-r from-rose-500 to-orange-500 h-full w-full transition-all duration-100 origin-left"></div>
+                </div>
+                <!-- 기 게이지 -->
+                <div class="w-full bg-slate-950/80 border border-rose-800 h-3 mt-1 rounded-br-md overflow-hidden relative">
+                    <div id="p2-energy" class="bg-amber-400 h-full w-0 transition-all duration-100 origin-right"></div>
+                    <div id="p2-energy-text" class="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white tracking-widest uppercase">EX 0%</div>
+                </div>
+                <!-- 콤보 카운트 -->
+                <div id="p2-combo" class="text-amber-400 font-extrabold text-sm md:text-xl italic mt-1 h-6 text-right transition-all duration-200 transform scale-0 origin-right">0 HIT!</div>
+            </div>
+        </div>
+
+        <!-- 하단 조작 가이드 오버레이 (게임 중 가볍게 노출) -->
+        <div class="w-full flex justify-between items-end text-[10px] md:text-xs text-gray-500 mt-auto">
+            <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-800">
+                <span class="text-cyan-400 font-bold block mb-1">1P 조작키 (왼쪽)</span>
+                A, D (이동) | W (점프) | F, G, R (공격) | <span class="text-amber-400 font-bold">E (EX 스페셜)</span>
+            </div>
+            <div id="ui-distance" class="bg-slate-950/90 border border-slate-800 px-4 py-2 rounded-full font-bold text-amber-500 tracking-wider">
+                DISTANCE: 0.0m
+            </div>
+            <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-800 text-right">
+                <span class="text-rose-500 font-bold block mb-1">2P 조작키 (오른쪽)</span>
+                ←, → (이동) | ↑ (점프) | J, K, L (공격) | <span class="text-amber-400 font-bold">O (EX 스페셜)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 경기 종료 / 게임오버 모달 -->
+    <div id="game-over-screen" class="absolute inset-0 z-50 flex-col items-center justify-center bg-black/80 text-white hidden">
+        <div class="bg-slate-950 border-4 border-double border-slate-800 p-8 rounded-2xl text-center max-w-md w-full mx-4 shadow-2xl">
+            <h2 id="winner-announcement" class="text-4xl md:text-5xl font-black italic tracking-widest text-amber-400 mb-4 text-neon-cyan">PLAYER 1 WINS!</h2>
+            <p id="winner-sub" class="text-gray-400 mb-8">체력 격차로 완벽한 KO 승리를 거두었습니다.</p>
+            
+            <div class="space-y-3">
+                <button onclick="restartGame()" class="pointer-events-auto w-full bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-extrabold py-3 px-6 rounded-lg shadow-lg hover:shadow-cyan-500/50 transform hover:-translate-y-0.5 transition-all text-lg">
+                    재대결 하기
+                </button>
+                <button onclick="goToCharacterSelect()" class="pointer-events-auto w-full bg-slate-900 hover:bg-slate-800 text-gray-300 font-bold py-2 px-6 rounded-lg border border-slate-700 transition-colors">
+                    캐릭터 선택으로 돌아가기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3D 캔버스 영역 -->
+    <div id="canvas-container" class="w-full h-full"></div>
+
+    <script>
+        // --- 오디오 효과음 합성기 (Web Audio API 활용) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSynthSound(type) {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            if (type === 'hit_light') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+            } else if (type === 'hit_heavy') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(5, audioCtx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'kick') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+            } else if (type === 'swing') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'block') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(250, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'ko') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 1.2);
+                gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 1.2);
+            } else if (type === 'special_cast') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.5);
+            }
+        }
+
+        // --- 캐릭터 특성 데이터 정의 (신규 캐릭터 프로스트-Q, 코스모-W 포함 총 8종) ---
+        const CHAR_TYPES = [
+            { name: "프로토-A", color: 0x06b6d4, highlight: 0x3b82f6, speed: 0.11, attackMod: 1.0, hpMax: 100 },
+            { name: "볼트-X", color: 0xf59e0b, highlight: 0xef4444, speed: 0.09, attackMod: 1.3, hpMax: 100 },
+            { name: "이더-S", color: 0x10b981, highlight: 0x14b8a6, speed: 0.10, attackMod: 0.8, hpMax: 100 },
+            { name: "네온-V", color: 0xf43f5e, highlight: 0xff007f, speed: 0.13, attackMod: 0.9, hpMax: 100 },
+            { name: "섀도우-Z", color: 0x8b5cf6, highlight: 0xa78bfa, speed: 0.11, attackMod: 1.0, hpMax: 100 },
+            { name: "블레이즈-F", color: 0xef4444, highlight: 0xf97316, speed: 0.08, attackMod: 1.4, hpMax: 100 },
+            { name: "프로스트-Q", color: 0x38bdf8, highlight: 0x0284c7, speed: 0.10, attackMod: 1.1, hpMax: 100 },
+            { name: "코스모-W", color: 0xe2e8f0, highlight: 0xf1f5f9, speed: 0.12, attackMod: 0.95, hpMax: 100 }
+        ];
+
+        // --- 상, 중, 하 난이도 파라미터 세팅 (상 난이도 벨런스 완화) ---
+        const DIFFICULTY_SETTINGS = {
+            easy: {
+                decisionDelayMin: 0.8, decisionDelayMax: 1.4,
+                attackCooldownMin: 1.3, attackCooldownMax: 2.0,
+                blockChance: 0.10, speedMultiplier: 0.65,
+                label: "하 (쉬움)", color: "text-emerald-400 border-emerald-500 bg-emerald-950/40"
+            },
+            normal: {
+                decisionDelayMin: 0.3, decisionDelayMax: 0.7,
+                attackCooldownMin: 0.6, attackCooldownMax: 1.3,
+                blockChance: 0.40, speedMultiplier: 0.9,
+                label: "중 (보통)", color: "text-cyan-400 border-cyan-500 bg-cyan-950/40"
+            },
+            hard: {
+                decisionDelayMin: 0.10, decisionDelayMax: 0.35,
+                attackCooldownMin: 0.4, attackCooldownMax: 0.9,
+                blockChance: 0.60, speedMultiplier: 1.05,
+                label: "상 (어려움)", color: "text-rose-500 border-rose-500 bg-rose-950/40"
+            }
+        };
+
+        // --- 전역 상태 및 게임 인스턴스 변수 ---
+        let scene, camera, renderer;
+        let p1, p2; // 파이터 인스턴스
+        let stageGroup; // 스테이지 3D 오브젝트를 관리할 그룹
+        let particles = []; 
+        let gameActive = false;
+        
+        let gameMode = 'vs-ai'; // 'vs-ai' 또는 'vs-player' (2인용)
+        let characterSelectStep = 'p1'; // 'p1' 또는 'p2' (캐릭터 순차 선택용)
+        let selectedP1TypeIdx = 0;
+        let selectedP2TypeIdx = 0;
+        let selectedStageIdx = 0; // 선택된 스테이지 인덱스 (0: 사이버도조, 1: 볼케이노, 2: 루프탑)
+        
+        let currentDifficulty = 'normal'; 
+        let roundTimer = 99;
+        let timerInterval;
+
+        // --- 키 상태 추적용 (1P 및 2P 전용 키 통합) ---
+        const keys = {
+            // 1P 조작
+            a: false, d: false, w: false, f: false, g: false, r: false, e: false,
+            // 2P 조작
+            arrowleft: false, arrowright: false, arrowup: false, j: false, k: false, l: false, o: false
+        };
+
+        // --- 모드 및 난이도 설정 함수 ---
+        function selectGameMode(mode) {
+            gameMode = mode;
+            
+            const btnAI = document.getElementById('btn-mode-ai');
+            const btnPlayer = document.getElementById('btn-mode-player');
+            const aiBox = document.getElementById('ai-difficulty-box');
+
+            if (mode === 'vs-ai') {
+                btnAI.className = "py-2 px-1 rounded-xl border-2 border-cyan-500 font-bold text-xs text-cyan-400 neon-btn-active-normal transition-all duration-300";
+                btnPlayer.className = "py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-xs text-gray-400 hover:text-rose-400 transition-all duration-300";
+                aiBox.style.opacity = '1';
+                aiBox.style.pointerEvents = 'auto';
+                updateSelectionPrompt();
+            } else {
+                btnAI.className = "py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-xs text-gray-400 hover:text-cyan-400 transition-all duration-300";
+                btnPlayer.className = "py-2 px-1 rounded-xl border-2 border-rose-500 font-bold text-xs text-rose-400 neon-btn-active-hard transition-all duration-300";
+                aiBox.style.opacity = '0.3';
+                aiBox.style.pointerEvents = 'none';
+                updateSelectionPrompt();
+            }
+        }
+
+        function selectDifficulty(diff) {
+            currentDifficulty = diff;
+            
+            ['easy', 'normal', 'hard'].forEach(d => {
+                const btn = document.getElementById(`btn-diff-${d}`);
+                btn.className = "py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-[11px] text-gray-400 hover:text-white transition-all";
+            });
+
+            const activeBtn = document.getElementById(`btn-diff-${diff}`);
+            if (diff === 'easy') activeBtn.classList.add('neon-btn-active-easy', 'text-emerald-400');
+            else if (diff === 'normal') activeBtn.classList.add('neon-btn-active-normal', 'text-cyan-400');
+            else if (diff === 'hard') activeBtn.classList.add('neon-btn-active-hard', 'text-rose-400');
+        }
+
+        // --- 스테이지 선택 함수 ---
+        function selectStage(idx) {
+            selectedStageIdx = idx;
+            
+            [0, 1, 2].forEach(i => {
+                const btn = document.getElementById(`btn-stage-${i}`);
+                btn.className = "py-2 px-1 rounded-xl border-2 border-slate-700 font-bold text-[11px] text-gray-400 hover:text-white transition-all";
+            });
+
+            const activeBtn = document.getElementById(`btn-stage-${idx}`);
+            if (idx === 0) activeBtn.classList.add('neon-btn-active-normal', 'text-cyan-400');
+            else if (idx === 1) activeBtn.classList.add('neon-btn-active-easy', 'text-orange-500'); 
+            else if (idx === 2) activeBtn.classList.add('neon-btn-active-hard', 'text-violet-400'); 
+            
+            playSynthSound('swing');
+        }
+
+        // --- 상단 안내 메시지 업데이트 ---
+        function updateSelectionPrompt() {
+            const prompt = document.getElementById('selection-prompt');
+            if (gameMode === 'vs-ai') {
+                prompt.innerText = "1P 플레이어의 캐릭터를 선택하세요! (상대는 컴퓨터 AI)";
+                prompt.className = "text-cyan-400 text-sm font-bold tracking-wide animate-pulse";
+                characterSelectStep = 'p1';
+            } else {
+                if (characterSelectStep === 'p1') {
+                    prompt.innerText = "1P 플레이어 (블루 진영)의 캐릭터를 선택하세요!";
+                    prompt.className = "text-cyan-400 text-sm font-bold tracking-wide animate-pulse";
+                } else {
+                    prompt.innerText = "2P 플레이어 (레드 진영)의 캐릭터를 선택하세요!";
+                    prompt.className = "text-rose-400 text-sm font-bold tracking-wide animate-pulse";
+                }
+            }
+        }
+
+        // --- 캐릭터 카드 클릭 시 분기 연출 ---
+        function clickCharacterCard(idx) {
+            if (gameMode === 'vs-ai') {
+                selectedP1TypeIdx = idx;
+                selectedP2TypeIdx = Math.floor(Math.random() * CHAR_TYPES.length); 
+                startGameSession();
+            } else {
+                if (characterSelectStep === 'p1') {
+                    selectedP1TypeIdx = idx;
+                    characterSelectStep = 'p2';
+                    playSynthSound('swing');
+                    updateSelectionPrompt();
+                } else {
+                    selectedP2TypeIdx = idx;
+                    playSynthSound('special_cast');
+                    startGameSession();
+                }
+            }
+        }
+
+        // --- 대전 환경 전개 세션 ---
+        function startGameSession() {
+            document.getElementById('character-select').classList.add('hidden');
+            document.getElementById('game-hud').classList.remove('hidden');
+
+            document.getElementById('p1-name').innerText = CHAR_TYPES[selectedP1TypeIdx].name + " (1P)";
+            
+            const p2NameLabel = document.getElementById('p2-name');
+            if (gameMode === 'vs-ai') {
+                p2NameLabel.innerText = CHAR_TYPES[selectedP2TypeIdx].name + " (AI)";
+                
+                const diffTag = document.getElementById('hud-difficulty-tag');
+                const diffSetting = DIFFICULTY_SETTINGS[currentDifficulty];
+                diffTag.innerText = diffSetting.label;
+                diffTag.className = `font-black text-[10px] tracking-widest px-3 py-1 border rounded-full mb-1 ${diffSetting.color}`;
+            } else {
+                p2NameLabel.innerText = CHAR_TYPES[selectedP2TypeIdx].name + " (2P)";
+                
+                const diffTag = document.getElementById('hud-difficulty-tag');
+                diffTag.innerText = "2 PLAYER VS";
+                diffTag.className = "font-black text-[10px] tracking-widest px-3 py-1 border rounded-full mb-1 text-rose-400 border-rose-500 bg-rose-950/40";
+            }
+
+            // 선택한 스테이지 테마로 3D 배경 다시 그리기
+            build3DStage(selectedStageIdx);
+
+            resetStage(selectedP1TypeIdx, selectedP2TypeIdx);
+        }
+
+        // --- 파이터 클래스 (3D 모델 및 상태 기동 포함) ---
+        class Fighter {
+            constructor(isPlayer, charTypeIdx, startX, playerNum = 1) {
+                this.isPlayer = isPlayer;
+                this.playerNum = playerNum; 
+                this.type = CHAR_TYPES[charTypeIdx];
+                this.hp = this.type.hpMax;
+                this.maxHp = this.type.hpMax;
+                
+                this.energy = 0;
+                this.maxEnergy = 100;
+                
+                let speedMult = 1.0;
+                if (!isPlayer && gameMode === 'vs-ai') {
+                    speedMult = DIFFICULTY_SETTINGS[currentDifficulty].speedMultiplier;
+                }
+                this.speed = this.type.speed * speedMult;
+                this.attackMod = this.type.attackMod;
+
+                // 물리/기하학 상태 변수
+                this.x = startX;
+                this.y = 0;
+                this.z = 0;
+                this.vy = 0;
+                this.isGrounded = true;
+                this.direction = (playerNum === 1) ? 1 : -1;
+
+                // 전투 상태 변수
+                this.state = 'idle'; 
+                this.stateTimer = 0;
+                this.comboCount = 0;
+                this.comboResetTimer = 0;
+                
+                this.activeAttack = null; 
+                this.hasHitThisAttack = false;
+
+                this.mesh = new THREE.Group();
+                this.buildModel();
+                scene.add(this.mesh);
+
+                this.mesh.position.set(this.x, this.y, this.z);
+            }
+
+            buildModel() {
+                const color = this.type.color;
+                const highlight = this.type.highlight;
+
+                const bodyMat = new THREE.MeshPhongMaterial({ color: color, shininess: 30 });
+                const JointMat = new THREE.MeshPhongMaterial({ color: 0x222233, shininess: 50 });
+                const lightMat = new THREE.MeshBasicMaterial({ color: highlight });
+
+                // 1. 골반/골조 허브
+                this.pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.4), JointMat);
+                this.pelvis.position.y = 1.0;
+                this.mesh.add(this.pelvis);
+
+                // 2. 흉부 (상체)
+                this.chest = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.5), bodyMat);
+                this.chest.position.y = 0.4;
+                this.pelvis.add(this.chest);
+
+                const core = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), lightMat);
+                core.position.set(0, 0.1, 0.22);
+                this.chest.add(core);
+
+                // 3. 머리
+                this.head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), bodyMat);
+                this.head.position.y = 0.55;
+                this.chest.add(this.head);
+
+                const visor = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 0.2), lightMat);
+                visor.position.set(0, 0.05, 0.2);
+                this.head.add(visor);
+
+                // 4. 왼쪽 팔
+                this.leftShoulder = new THREE.Group();
+                this.leftShoulder.position.set(-0.55, 0.2, 0);
+                this.chest.add(this.leftShoulder);
+                
+                const lShoulderJoint = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), JointMat);
+                this.leftShoulder.add(lShoulderJoint);
+
+                this.leftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.5), bodyMat);
+                this.leftArm.position.y = -0.25;
+                this.leftShoulder.add(this.leftArm);
+
+                this.leftFist = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 8), JointMat);
+                this.leftFist.position.y = -0.55;
+                this.leftShoulder.add(this.leftFist);
+
+                // 5. 오른쪽 팔
+                this.rightShoulder = new THREE.Group();
+                this.rightShoulder.position.set(0.55, 0.2, 0);
+                this.chest.add(this.rightShoulder);
+
+                const rShoulderJoint = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), JointMat);
+                this.rightShoulder.add(rShoulderJoint);
+
+                this.rightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.5), bodyMat);
+                this.rightArm.position.y = -0.25;
+                this.rightShoulder.add(this.rightArm);
+
+                this.rightFist = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 8), JointMat);
+                this.rightFist.position.y = -0.55;
+                this.rightShoulder.add(this.rightFist);
+
+                // 6. 왼쪽 다리
+                this.leftHip = new THREE.Group();
+                this.leftHip.position.set(-0.25, -0.1, 0);
+                this.pelvis.add(this.leftHip);
+
+                const lHipJoint = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), JointMat);
+                this.leftHip.add(lHipJoint);
+
+                this.leftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.07, 0.6), bodyMat);
+                this.leftLeg.position.y = -0.35;
+                this.leftHip.add(this.leftLeg);
+
+                this.leftFoot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.28), JointMat);
+                this.leftFoot.position.set(0, -0.65, 0.05);
+                this.leftHip.add(this.leftFoot);
+
+                // 7. 오른쪽 다리
+                this.rightHip = new THREE.Group();
+                this.rightHip.position.set(0.25, -0.1, 0);
+                this.pelvis.add(this.rightHip);
+
+                const rHipJoint = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), JointMat);
+                this.rightHip.add(rHipJoint);
+
+                this.rightLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.07, 0.6), bodyMat);
+                this.rightLeg.position.y = -0.35;
+                this.rightHip.add(this.rightLeg);
+
+                this.rightFoot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.28), JointMat);
+                this.rightFoot.position.set(0, -0.65, 0.05);
+                this.rightHip.add(this.rightFoot);
+                
+                const shadowGeo = new THREE.RingGeometry(0.01, 0.45, 16);
+                const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+                this.shadow = new THREE.Mesh(shadowGeo, shadowMat);
+                this.shadow.rotation.x = Math.PI / 2;
+                this.shadow.position.y = -1.0;
+                this.mesh.add(this.shadow);
+            }
+
+            animateJoints(time) {
+                let lShoulderRotX = 0.2, lShoulderRotZ = -0.15;
+                let rShoulderRotX = 0.2, rShoulderRotZ = 0.15;
+                let lHipRotX = 0, lHipRotZ = 0;
+                let rHipRotX = 0, rHipRotZ = 0;
+                let chestRotY = 0, chestRotX = 0;
+                
+                const cycle = Math.sin(time * 8);
+
+                switch (this.state) {
+                    case 'idle':
+                        const breath = Math.sin(time * 3);
+                        this.chest.position.y = 0.4 + breath * 0.03;
+                        lShoulderRotX = 0.3 + breath * 0.05;
+                        rShoulderRotX = 0.3 + breath * 0.05;
+                        lShoulderRotZ = -0.1 - breath * 0.02;
+                        rShoulderRotZ = 0.1 + breath * 0.02;
+                        break;
+
+                    case 'moving':
+                        this.chest.position.y = 0.4 + Math.abs(cycle) * 0.05;
+                        lShoulderRotX = cycle * 1.0;
+                        rShoulderRotX = -cycle * 1.0;
+                        lHipRotX = -cycle * 0.8;
+                        rHipRotX = cycle * 0.8;
+                        break;
+
+                    case 'jumping':
+                        lShoulderRotX = -0.5;
+                        rShoulderRotX = -0.5;
+                        lHipRotX = 0.4;
+                        rHipRotX = 0.4;
+                        break;
+
+                    case 'attacking':
+                        if (this.activeAttack === 'jab') {
+                            const ext = Math.sin(this.stateTimer * Math.PI);
+                            lShoulderRotX = 1.6 * ext;
+                            lShoulderRotZ = -0.1 * (1 - ext);
+                            chestRotY = 0.5 * ext * this.direction;
+                        } else if (this.activeAttack === 'heavy') {
+                            const ext = Math.sin(this.stateTimer * Math.PI);
+                            rShoulderRotX = 1.9 * ext;
+                            chestRotY = -0.7 * ext * this.direction;
+                            chestRotX = 0.2 * ext;
+                        } else if (this.activeAttack === 'kick') {
+                            const ext = Math.sin(this.stateTimer * Math.PI);
+                            rHipRotX = 1.8 * ext;
+                            rShoulderRotX = -0.4 * ext;
+                            lHipRotX = -0.3 * ext;
+                        } else if (this.activeAttack === 'special') {
+                            const ext = Math.sin(this.stateTimer * Math.PI);
+                            this.chest.position.y = 0.8 + ext * 0.4;
+                            lShoulderRotX = 2.0 * ext;
+                            rShoulderRotX = 2.0 * ext;
+                            lHipRotX = 0.8 * ext;
+                            rHipRotX = 0.8 * ext;
+                            chestRotY = ext * Math.PI * 2 * this.direction; 
+                        }
+                        break;
+
+                    case 'hitting':
+                        const shudder = Math.sin(this.stateTimer * 40);
+                        this.chest.position.y = 0.4 + shudder * 0.04;
+                        chestRotX = -0.4;
+                        chestRotY = -0.2 * this.direction;
+                        lShoulderRotX = -0.8;
+                        rShoulderRotX = -0.8;
+                        break;
+
+                    case 'blocking':
+                        lShoulderRotX = 1.2;
+                        lShoulderRotZ = 0.4;
+                        rShoulderRotX = 1.2;
+                        rShoulderRotZ = -0.4;
+                        chestRotX = 0.1;
+                        break;
+
+                    case 'ko':
+                        const fallProgress = Math.min(this.stateTimer, 1.0);
+                        this.mesh.rotation.z = (Math.PI / 2) * fallProgress * -this.direction;
+                        this.mesh.position.y = -0.8 * fallProgress;
+                        break;
+                }
+
+                this.leftShoulder.rotation.x = lShoulderRotX;
+                this.leftShoulder.rotation.z = lShoulderRotZ;
+                this.rightShoulder.rotation.x = rShoulderRotX;
+                this.rightShoulder.rotation.z = rShoulderRotZ;
+                this.leftHip.rotation.x = lHipRotX;
+                this.leftHip.rotation.z = lHipRotZ;
+                this.rightHip.rotation.x = rHipRotX;
+                this.rightHip.rotation.z = rHipRotZ;
+                this.chest.rotation.y = chestRotY;
+                this.chest.rotation.x = chestRotX;
+            }
+
+            lookAtTarget(targetX) {
+                if (this.state === 'ko') return;
+                
+                if (this.x < targetX) {
+                    this.direction = 1;
+                    this.mesh.rotation.y = Math.PI / 2;
+                } else {
+                    this.direction = -1;
+                    this.mesh.rotation.y = -Math.PI / 2;
+                }
+            }
+
+            transitionTo(newState) {
+                if (this.state === 'ko') return;
+                this.state = newState;
+                this.stateTimer = 0;
+            }
+
+            attack(attackType) {
+                if (this.state === 'idle' || this.state === 'moving' || this.state === 'blocking') {
+                    this.activeAttack = attackType;
+                    this.hasHitThisAttack = false;
+                    this.transitionTo('attacking');
+                    
+                    if (attackType === 'jab') playSynthSound('swing');
+                    else if (attackType === 'heavy') playSynthSound('swing');
+                    else if (attackType === 'kick') playSynthSound('kick');
+                }
+            }
+
+            useSpecial() {
+                if (this.energy < this.maxEnergy || this.state === 'ko' || this.state === 'hitting') return;
+                
+                this.energy = 0;
+                this.activeAttack = 'special';
+                this.hasHitThisAttack = false;
+                this.transitionTo('attacking');
+                playSynthSound('special_cast');
+
+                if (this.type.name === "프로토-A") {
+                    this.x += 2.2 * this.direction;
+                    this.x = Math.max(-13, Math.min(13, this.x));
+                    createSparks(this.x, 0.4, 0x06b6d4, 40, true);
+                } else if (this.type.name === "볼트-X") {
+                    createSparks(this.x + 1.2 * this.direction, 0.2, 0xf59e0b, 50, true);
+                } else if (this.type.name === "이더-S") {
+                    this.hp = Math.min(this.maxHp, this.hp + 20); 
+                    createSparks(this.x, 0.4, 0x10b981, 45, true);
+                } else if (this.type.name === "네온-V") {
+                    this.x += 2.8 * this.direction;
+                    this.x = Math.max(-13, Math.min(13, this.x));
+                    createSparks(this.x, 0.4, 0xf43f5e, 45, true);
+                } else if (this.type.name === "섀도우-Z") {
+                    createSparks(this.x + 1.0 * this.direction, 0.4, 0x8b5cf6, 45, true);
+                } else if (this.type.name === "블레이즈-F") {
+                    createSparks(this.x + 1.5 * this.direction, 0.3, 0xef4444, 60, true);
+                } else if (this.type.name === "프로스트-Q") {
+                    // 프로스트-Q: 블리자드 스톰 (빙결 냉기 스파크 방출)
+                    createSparks(this.x + 1.2 * this.direction, 0.4, 0x38bdf8, 50, true);
+                } else if (this.type.name === "코스모-W") {
+                    // 코스모-W: 노바 익스플로전 (초신성 실버 스타 버스트)
+                    createSparks(this.x, 0.4, 0xf1f5f9, 55, true);
+                }
+
+                updateHUD();
+            }
+
+            takeDamage(damage, isHeavy = false, isBlocked = false, isSpecial = false) {
+                if (this.state === 'ko') return;
+
+                if (isBlocked && isSpecial) {
+                    playSynthSound('hit_heavy');
+                    this.hp -= damage * 0.7; 
+                    this.transitionTo('hitting');
+                    this.x -= 0.8 * this.direction;
+                    createSparks(this.x + 0.2 * this.direction, 0.4, 0xeab308, 25);
+                } else if (isBlocked) {
+                    playSynthSound('block');
+                    this.hp -= damage * 0.15;
+                    this.transitionTo('blocking');
+                    this.x -= 0.15 * this.direction;
+                    createSparks(this.x + 0.3 * this.direction, 0.4, 0xffffff, 5);
+                } else {
+                    if (isHeavy || isSpecial) {
+                        playSynthSound('hit_heavy');
+                        this.hp -= damage;
+                        this.x -= (isSpecial ? 1.2 : 0.8) * this.direction; 
+                        createSparks(this.x + 0.2 * this.direction, 0.4, isSpecial ? 0xeab308 : 0xff3b30, isSpecial ? 35 : 20);
+                    } else {
+                        playSynthSound('hit_light');
+                        this.hp -= damage;
+                        this.x -= 0.4 * this.direction;
+                        createSparks(this.x + 0.2 * this.direction, 0.4, 0xff9500, 10);
+                    }
+                    this.transitionTo('hitting');
+                }
+
+                this.energy = Math.min(this.maxEnergy, this.energy + 8);
+
+                this.x = Math.max(-13, Math.min(13, this.x));
+                updateHUD();
+
+                if (this.hp <= 0) {
+                    this.hp = 0;
+                    this.transitionTo('ko');
+                    playSynthSound('ko');
+                    
+                    const winnerMsg = (this.playerNum === 1) ? "PLAYER 2 WINS!" : "PLAYER 1 WINS!";
+                    endGame(winnerMsg);
+                }
+            }
+
+            update(deltaTime) {
+                this.stateTimer += deltaTime;
+                this.comboResetTimer += deltaTime;
+
+                if (this.comboResetTimer > 1.5) {
+                    this.comboCount = 0;
+                    hideComboUI(this.playerNum === 1 ? 'p1' : 'p2');
+                }
+
+                if (!this.isGrounded) {
+                    this.vy -= 9.8 * deltaTime;
+                    this.y += this.vy * deltaTime;
+                    if (this.y <= 0) {
+                        this.y = 0;
+                        this.vy = 0;
+                        this.isGrounded = true;
+                        if (this.state === 'jumping') {
+                            this.transitionTo('idle');
+                        }
+                    }
+                }
+
+                if (this.state === 'attacking') {
+                    let attackDuration = 0.3;
+                    if (this.activeAttack === 'heavy') attackDuration = 0.55;
+                    if (this.activeAttack === 'kick') attackDuration = 0.45;
+                    if (this.activeAttack === 'special') attackDuration = 0.75; 
+
+                    if (this.stateTimer >= attackDuration) {
+                        this.activeAttack = null;
+                        this.hasHitThisAttack = false;
+                        this.transitionTo('idle');
+                    }
+                } else if (this.state === 'hitting') {
+                    if (this.stateTimer >= 0.35) {
+                        this.transitionTo('idle');
+                    }
+                } else if (this.state === 'blocking') {
+                    if (this.stateTimer >= 0.25) {
+                        this.transitionTo('idle');
+                    }
+                }
+
+                this.mesh.position.set(this.x, this.y, this.z);
+                this.animateJoints(performance.now() * 0.001);
+            }
+        }
+
+        // --- 피격 효과 (스파크 파티클) ---
+        function createSparks(x, y, colorCode, count, isSpecialBurst = false) {
+            for (let i = 0; i < count; i++) {
+                const size = isSpecialBurst ? 0.12 : 0.06;
+                const particleGeo = new THREE.BoxGeometry(size, size, size);
+                const particleMat = new THREE.MeshBasicMaterial({ color: colorCode });
+                const particle = new THREE.Mesh(particleGeo, particleMat);
+                
+                particle.position.set(x + (Math.random() - 0.5) * 0.5, y + (Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.5);
+                
+                scene.add(particle);
+
+                const speedScale = isSpecialBurst ? 2.2 : 1.0;
+                particles.push({
+                    mesh: particle,
+                    vx: (Math.random() - 0.5) * 6 * speedScale,
+                    vy: (Math.random() * 6 + 2) * speedScale,
+                    vz: (Math.random() - 0.5) * 6 * speedScale,
+                    life: 1.0
+                });
+            }
+        }
+
+        function updateParticles(deltaTime) {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.mesh.position.x += p.vx * deltaTime;
+                p.mesh.position.y += p.vy * deltaTime;
+                p.mesh.position.z += p.vz * deltaTime;
+
+                p.vy -= 9.8 * deltaTime;
+                p.life -= deltaTime * 2.2;
+                p.mesh.scale.setScalar(p.life);
+
+                if (p.life <= 0) {
+                    scene.remove(p.mesh);
+                    p.mesh.geometry.dispose();
+                    p.mesh.material.dispose();
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        // --- 3D 엔진 기동 및 환경 기본 설정 ---
+        function initEngine() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x0a0a14, 0.04);
+
+            camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(0, 1.8, 6.5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setClearColor(0x0a0a14, 1.0);
+            container.appendChild(renderer.domElement);
+
+            stageGroup = new THREE.Group();
+            scene.add(stageGroup);
+
+            build3DStage(0);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        // --- 3D 대결 스테이지 환경 유기적 생성기 ---
+        function build3DStage(stageIdx) {
+            if (stageGroup) {
+                while(stageGroup.children.length > 0){
+                    const obj = stageGroup.children[0];
+                    stageGroup.remove(obj);
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) {
+                        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                        else obj.material.dispose();
+                    }
+                }
+            }
+
+            if (stageIdx === 0) {
+                // [스테이지 1: 사이버 도조]
+                scene.fog.color.setHex(0x0a0a14);
+                renderer.setClearColor(0x0a0a14, 1.0);
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+                stageGroup.add(ambientLight);
+
+                const pLight1 = new THREE.PointLight(0x06b6d4, 2, 20);
+                pLight1.position.set(-6, 3, 2);
+                stageGroup.add(pLight1);
+
+                const pLight2 = new THREE.PointLight(0xf43f5e, 2, 20);
+                pLight2.position.set(6, 3, 2);
+                stageGroup.add(pLight2);
+
+                const spotLight = new THREE.SpotLight(0xffffff, 1.5, 30, Math.PI/4, 0.5, 1);
+                spotLight.position.set(0, 8, 0);
+                stageGroup.add(spotLight);
+
+                const floorGeo = new THREE.PlaneGeometry(30, 10);
+                const floorMat = new THREE.MeshPhongMaterial({ color: 0x0f111a, shininess: 80 });
+                const floor = new THREE.Mesh(floorGeo, floorMat);
+                floor.rotation.x = -Math.PI / 2;
+                floor.position.y = -1.0;
+                stageGroup.add(floor);
+
+                const gridHelper = new THREE.GridHelper(30, 20, 0x06b6d4, 0x1e293b);
+                gridHelper.position.y = -0.99;
+                stageGroup.add(gridHelper);
+
+                for (let i = -15; i <= 15; i += 10) {
+                    const pillarGeo = new THREE.CylinderGeometry(0.2, 0.2, 8, 8);
+                    const pillarMat = new THREE.MeshPhongMaterial({ color: 0x0a0f1d });
+                    const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+                    pillar.position.set(i, 3, -4);
+                    stageGroup.add(pillar);
+
+                    const lightGeo = new THREE.BoxGeometry(0.05, 7.5, 0.05);
+                    const neonColor = (i % 20 === 0) ? 0xf43f5e : 0x06b6d4;
+                    const lightNeonMat = new THREE.MeshBasicMaterial({ color: neonColor });
+                    const lightStrut = new THREE.Mesh(lightGeo, lightNeonMat);
+                    lightStrut.position.set(0, 0, 0.21);
+                    pillar.add(lightStrut);
+                }
+
+            } else if (stageIdx === 1) {
+                // [스테이지 2: 네온 볼케이노 (화산 스테이지)]
+                scene.fog.color.setHex(0x1a0505);
+                renderer.setClearColor(0x1a0505, 1.0);
+
+                const ambientLight = new THREE.AmbientLight(0xffaa66, 0.25);
+                stageGroup.add(ambientLight);
+
+                const pLight1 = new THREE.PointLight(0xff5500, 3, 20);
+                pLight1.position.set(-5, 2, 2);
+                stageGroup.add(pLight1);
+
+                const pLight2 = new THREE.PointLight(0xffaa00, 2, 20);
+                pLight2.position.set(5, 2, 2);
+                stageGroup.add(pLight2);
+
+                const spotLight = new THREE.SpotLight(0xffaa66, 1.8, 30, Math.PI/3, 0.6, 1);
+                spotLight.position.set(0, 8, 0);
+                stageGroup.add(spotLight);
+
+                const floorGeo = new THREE.PlaneGeometry(30, 10);
+                const floorMat = new THREE.MeshPhongMaterial({ color: 0x0c0606, shininess: 30 });
+                const floor = new THREE.Mesh(floorGeo, floorMat);
+                floor.rotation.x = -Math.PI / 2;
+                floor.position.y = -1.0;
+                stageGroup.add(floor);
+
+                const gridHelper = new THREE.GridHelper(30, 20, 0xff5500, 0x3d0b00);
+                gridHelper.position.y = -0.99;
+                stageGroup.add(gridHelper);
+
+                for (let i = -16; i <= 16; i += 8) {
+                    const crystalGeo = new THREE.CylinderGeometry(0.01, 0.5, 6, 5);
+                    const crystalMat = new THREE.MeshPhongMaterial({ color: 0xff3300, emissive: 0xaa2200, shininess: 90 });
+                    const crystal = new THREE.Mesh(crystalGeo, crystalMat);
+                    crystal.position.set(i + (Math.random() - 0.5) * 2, 2, -4.5);
+                    crystal.rotation.z = (Math.random() - 0.5) * 0.3;
+                    stageGroup.add(crystal);
+                    
+                    const subGeo = new THREE.OctahedronGeometry(0.4);
+                    const subMat = new THREE.MeshBasicMaterial({ color: 0xff8800 });
+                    const subMesh = new THREE.Mesh(subGeo, subMat);
+                    subMesh.position.set(i + (Math.random() - 0.5) * 2, 4 + Math.random(), -4);
+                    stageGroup.add(subMesh);
+                }
+
+            } else if (stageIdx === 2) {
+                // [스테이지 3: 메트로 루프탑 (미래 도시 빌딩 야경)]
+                scene.fog.color.setHex(0x05050f);
+                renderer.setClearColor(0x05050f, 1.0);
+
+                const ambientLight = new THREE.AmbientLight(0x8888ff, 0.2);
+                stageGroup.add(ambientLight);
+
+                const pLight1 = new THREE.PointLight(0x8b5cf6, 2.5, 20); 
+                pLight1.position.set(-6, 4, 2);
+                stageGroup.add(pLight1);
+
+                const pLight2 = new THREE.PointLight(0x06b6d4, 2.5, 20); 
+                pLight2.position.set(6, 4, 2);
+                stageGroup.add(pLight2);
+
+                const spotLight = new THREE.SpotLight(0xddddff, 1.2, 35, Math.PI/4, 0.5, 1);
+                spotLight.position.set(0, 9, 0);
+                stageGroup.add(spotLight);
+
+                const floorGeo = new THREE.PlaneGeometry(30, 10);
+                const floorMat = new THREE.MeshPhongMaterial({ color: 0x11111d, shininess: 95 });
+                const floor = new THREE.Mesh(floorGeo, floorMat);
+                floor.rotation.x = -Math.PI / 2;
+                floor.position.y = -1.0;
+                stageGroup.add(floor);
+
+                const gridHelper = new THREE.GridHelper(30, 20, 0x8b5cf6, 0x1f193c);
+                gridHelper.position.y = -0.99;
+                stageGroup.add(gridHelper);
+
+                const heights = [6, 12, 9, 7, 10, 14, 8];
+                const widths = [3, 4, 3.5, 4.5, 3.8, 5, 4];
+                let idx = 0;
+                for (let x = -18; x <= 18; x += 5.5) {
+                    const h = heights[idx % heights.length];
+                    const w = widths[idx % widths.length];
+                    
+                    const bGeo = new THREE.BoxGeometry(w, h, 2);
+                    const bMat = new THREE.MeshPhongMaterial({ color: 0x05050a });
+                    const building = new THREE.Mesh(bGeo, bMat);
+                    building.position.set(x, h/2 - 4.5, -6); 
+                    stageGroup.add(building);
+
+                    for (let wy = h/2 - 2; wy > -h/2 + 2; wy -= 1.5) {
+                        for (let wx = -w/2 + 0.8; wx < w/2 - 0.8; wx += 1.2) {
+                            if (Math.random() < 0.6) { 
+                                const winGeo = new THREE.BoxGeometry(0.15, 0.15, 0.05);
+                                const winMat = new THREE.MeshBasicMaterial({ color: Math.random() < 0.5 ? 0xffcc33 : 0x00ffff });
+                                const windowMesh = new THREE.Mesh(winGeo, winMat);
+                                windowMesh.position.set(wx, wy, 1.01);
+                                building.add(windowMesh);
+                            }
+                        }
+                    }
+                    idx++;
+                }
+            }
+        }
+
+        // --- 입력 가동 처리 ---
+        window.addEventListener('keydown', (e) => {
+            if (!gameActive) return;
+            
+            if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(e.key.toLowerCase())) {
+                e.preventDefault();
+            }
+
+            const key = e.key.toLowerCase();
+            if (key in keys) keys[key] = true;
+
+            if (key === 'f') p1.attack('jab');
+            if (key === 'g') p1.attack('heavy');
+            if (key === 'r') p1.attack('kick');
+            if (key === 'e') p1.useSpecial();
+            
+            if (key === 'w' && p1.isGrounded && p1.state !== 'ko') {
+                p1.vy = 6.2;
+                p1.isGrounded = false;
+                p1.transitionTo('jumping');
+            }
+
+            if (gameMode === 'vs-player') {
+                if (key === 'j') p2.attack('jab');
+                if (key === 'k') p2.attack('heavy');
+                if (key === 'l') p2.attack('kick');
+                if (key === 'o') p2.useSpecial();
+
+                if (key === 'arrowup' && p2.isGrounded && p2.state !== 'ko') {
+                    p2.vy = 6.2;
+                    p2.isGrounded = false;
+                    p2.transitionTo('jumping');
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (key in keys) keys[key] = false;
+        });
+
+        function handlePlayer1Movement(deltaTime) {
+            if (p1.state === 'ko' || p1.state === 'hitting') return;
+
+            let isMoving = false;
+            if (keys.a) {
+                p1.x -= p1.speed;
+                isMoving = true;
+            }
+            if (keys.d) {
+                p1.x += p1.speed;
+                isMoving = true;
+            }
+
+            p1.x = Math.max(-13, Math.min(13, p1.x));
+
+            if (p1.isGrounded && p1.state !== 'attacking') {
+                if (isMoving) {
+                    p1.transitionTo('moving');
+                } else {
+                    p1.transitionTo('idle');
+                }
+            }
+        }
+
+        function handlePlayer2Movement(deltaTime) {
+            if (p2.state === 'ko' || p2.state === 'hitting') return;
+
+            let isMoving = false;
+            if (keys.arrowleft) {
+                p2.x -= p2.speed;
+                isMoving = true;
+            }
+            if (keys.arrowright) {
+                p2.x += p2.speed;
+                isMoving = true;
+            }
+
+            p2.x = Math.max(-13, Math.min(13, p2.x));
+
+            if (p2.isGrounded && p2.state !== 'attacking') {
+                if (isMoving) {
+                    p2.transitionTo('moving');
+                } else {
+                    p2.transitionTo('idle');
+                }
+            }
+        }
+
+        let aiAttackCooldown = 0;
+        let aiDecisionTimer = 0;
+
+        function handleAIMovement(deltaTime) {
+            if (p2.state === 'ko' || p2.state === 'hitting') return;
+
+            const dist = Math.abs(p1.x - p2.x);
+            aiAttackCooldown -= deltaTime;
+            aiDecisionTimer -= deltaTime;
+
+            const aiSettings = DIFFICULTY_SETTINGS[currentDifficulty];
+
+            if (p2.energy >= p2.maxEnergy && dist <= 2.5 && p2.state !== 'attacking') {
+                p2.useSpecial();
+                return;
+            }
+
+            if (aiDecisionTimer <= 0) {
+                aiDecisionTimer = aiSettings.decisionDelayMin + Math.random() * (aiSettings.decisionDelayMax - aiSettings.decisionDelayMin);
+
+                if (dist > 2.8) {
+                    p2.transitionTo('moving');
+                } else if (dist < 1.2) {
+                    const rand = Math.random();
+                    if (rand < aiSettings.blockChance) {
+                        p2.transitionTo('blocking');
+                    } else {
+                        p2.transitionTo('moving');
+                    }
+                } else {
+                    const rand = Math.random();
+                    if (rand < aiSettings.blockChance) {
+                        p2.transitionTo('blocking');
+                    } else if (rand < 0.6) {
+                        p2.transitionTo('idle');
+                    } else {
+                        p2.transitionTo('moving');
+                    }
+                }
+            }
+
+            if (p2.state === 'moving') {
+                const step = p2.speed;
+                if (p2.x < p1.x) p2.x += step;
+                else p2.x -= step;
+            }
+
+            if (dist < 2.0 && aiAttackCooldown <= 0) {
+                aiAttackCooldown = aiSettings.attackCooldownMin + Math.random() * (aiSettings.attackCooldownMax - aiSettings.attackCooldownMin);
+
+                const attackChoices = currentDifficulty === 'hard' 
+                    ? ['jab', 'heavy', 'heavy', 'kick', 'kick'] 
+                    : ['jab', 'jab', 'heavy', 'kick'];
+                    
+                const chosen = attackChoices[Math.floor(Math.random() * attackChoices.length)];
+                p2.attack(chosen);
+            }
+
+            p2.x = Math.max(-13, Math.min(13, p2.x));
+        }
+
+        function checkCollisions() {
+            const dist = Math.abs(p1.x - p2.x);
+
+            // 1P 공격 검사
+            if (p1.state === 'attacking' && !p1.hasHitThisAttack) {
+                let reach = 1.3;
+                let damage = 5;
+                let isHeavy = false;
+                let isSpecial = false;
+
+                if (p1.activeAttack === 'heavy') { reach = 1.6; damage = 12; isHeavy = true; }
+                if (p1.activeAttack === 'kick') { reach = 1.7; damage = 9; }
+                if (p1.activeAttack === 'special') { 
+                    reach = 2.4; 
+                    damage = 25; 
+                    isSpecial = true; 
+                    if (p1.type.name === "블레이즈-F") { reach = 3.0; damage = 30; } 
+                    if (p1.type.name === "네온-V") { reach = 2.8; damage = 22; } 
+                    if (p1.type.name === "프로스트-Q") { reach = 2.6; damage = 24; }
+                    if (p1.type.name === "코스모-W") { reach = 2.5; damage = 26; }
+                }
+
+                if (dist <= reach) {
+                    p1.hasHitThisAttack = true;
+                    const isBlocked = p2.state === 'blocking' && p2.direction !== p1.direction;
+                    
+                    p2.takeDamage(damage * p1.attackMod, isHeavy, isBlocked, isSpecial);
+                    
+                    if (!isBlocked) {
+                        p1.comboCount++;
+                        p1.comboResetTimer = 0;
+                        showComboUI('p1', p1.comboCount);
+                        p1.energy = Math.min(p1.maxEnergy, p1.energy + 12);
+                    }
+                }
+            }
+
+            // 2P 공격 검사
+            if (p2.state === 'attacking' && !p2.hasHitThisAttack) {
+                let reach = 1.3;
+                let damage = 5;
+                let isHeavy = false;
+                let isSpecial = false;
+
+                if (p2.activeAttack === 'heavy') { reach = 1.6; damage = 12; isHeavy = true; }
+                if (p2.activeAttack === 'kick') { reach = 1.7; damage = 9; }
+                if (p2.activeAttack === 'special') { 
+                    reach = 2.4; 
+                    damage = 25; 
+                    isSpecial = true; 
+                    if (p2.type.name === "블레이즈-F") { reach = 3.0; damage = 30; }
+                    if (p2.type.name === "네온-V") { reach = 2.8; damage = 22; }
+                    if (p2.type.name === "프로스트-Q") { reach = 2.6; damage = 24; }
+                    if (p2.type.name === "코스모-W") { reach = 2.5; damage = 26; }
+                }
+
+                if (dist <= reach) {
+                    p2.hasHitThisAttack = true;
+                    const isBlocked = p1.state === 'blocking' && p1.direction !== p2.direction;
+                    
+                    p1.takeDamage(damage * p2.attackMod, isHeavy, isBlocked, isSpecial);
+                    
+                    if (!isBlocked) {
+                        p2.comboCount++;
+                        p2.comboResetTimer = 0;
+                        showComboUI('p2', p2.comboCount);
+                        p2.energy = Math.min(p2.maxEnergy, p2.energy + 12);
+                    }
+                }
+            }
+        }
+
+        function updateCamera() {
+            if (!p1 || !p2) return;
+            const midPointX = (p1.x + p2.x) / 2;
+            const dist = Math.abs(p1.x - p2.x);
+
+            const targetCamZ = Math.max(5.5, Math.min(10, 4.5 + dist * 0.4));
+            const targetCamY = Math.max(1.5, Math.min(2.5, 1.2 + dist * 0.1));
+
+            camera.position.x += (midPointX - camera.position.x) * 0.08;
+            camera.position.y += (targetCamY - camera.position.y) * 0.08;
+            camera.position.z += (targetCamZ - camera.position.z) * 0.08;
+
+            camera.lookAt(midPointX, 0.4, 0);
+        }
+
+        function updateHUD() {
+            const p1HpPercent = (p1.hp / p1.maxHp) * 100;
+            const p2HpPercent = (p2.hp / p2.maxHp) * 100;
+
+            document.getElementById('p1-health').style.width = p1HpPercent + '%';
+            document.getElementById('p2-health').style.width = p2HpPercent + '%';
+
+            const p1EnergyPercent = (p1.energy / p1.maxEnergy) * 100;
+            const p2EnergyPercent = (p2.energy / p2.maxEnergy) * 100;
+
+            const p1EnergyBar = document.getElementById('p1-energy');
+            const p2EnergyBar = document.getElementById('p2-energy');
+
+            p1EnergyBar.style.width = p1EnergyPercent + '%';
+            p2EnergyBar.style.width = p2EnergyPercent + '%';
+
+            document.getElementById('p1-energy-text').innerText = p1EnergyPercent >= 100 ? "EX READY (E)" : `EX ${Math.floor(p1EnergyPercent)}%`;
+            document.getElementById('p2-energy-text').innerText = p2EnergyPercent >= 100 ? (gameMode === 'vs-player' ? "EX READY (O)" : "EX READY") : `EX ${Math.floor(p2EnergyPercent)}%`;
+
+            if (p1EnergyPercent >= 100) {
+                p1EnergyBar.classList.add('gauge-ready');
+                p1EnergyBar.style.backgroundColor = '#f59e0b';
+            } else {
+                p1EnergyBar.classList.remove('gauge-ready');
+                p1EnergyBar.style.backgroundColor = '#06b6d4';
+            }
+
+            if (p2EnergyPercent >= 100) {
+                p2EnergyBar.classList.add('gauge-ready');
+                p2EnergyBar.style.backgroundColor = '#f59e0b';
+            } else {
+                p2EnergyBar.classList.remove('gauge-ready');
+                p2EnergyBar.style.backgroundColor = '#f43f5e';
+            }
+
+            document.getElementById('p1-action').innerText = p1.state;
+            document.getElementById('p2-action').innerText = p2.state;
+
+            const dist = Math.abs(p1.x - p2.x);
+            document.getElementById('ui-distance').innerText = `DISTANCE: ${dist.toFixed(1)}m`;
+        }
+
+        function showComboUI(side, count) {
+            const el = document.getElementById(`${side}-combo`);
+            if (count > 1) {
+                el.innerText = `${count} HITS!`;
+                el.style.transform = 'scale(1.2)';
+                el.style.opacity = '1';
+                setTimeout(() => {
+                    el.style.transform = 'scale(1.0)';
+                }, 100);
+            }
+        }
+
+        function hideComboUI(side) {
+            const el = document.getElementById(`${side}-combo`);
+            el.style.opacity = '0';
+            el.style.transform = 'scale(0)';
+        }
+
+        function startTimer() {
+            roundTimer = 99;
+            document.getElementById('game-timer').innerText = roundTimer;
+            
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (!gameActive) return;
+                roundTimer--;
+                document.getElementById('game-timer').innerText = roundTimer;
+
+                if (roundTimer <= 0) {
+                    clearInterval(timerInterval);
+                    if (p1.hp > p2.hp) {
+                        p2.transitionTo('ko');
+                        endGame("시간 초과! PLAYER 1 판정승!");
+                    } else if (p2.hp > p1.hp) {
+                        p1.transitionTo('ko');
+                        endGame("시간 초과! PLAYER 2 판정승!");
+                    } else {
+                        endGame("무승부!");
+                    }
+                }
+            }, 1000);
+        }
+
+        function resetStage(p1Type, p2Type) {
+            if (p1) { scene.remove(p1.mesh); }
+            if (p2) { scene.remove(p2.mesh); }
+
+            p1 = new Fighter(true, p1Type, -2.5, 1);
+            
+            const is2PRealPlayer = (gameMode === 'vs-player');
+            p2 = new Fighter(is2PRealPlayer, p2Type, 2.5, 2);
+
+            p1.lookAtTarget(p2.x);
+            p2.lookAtTarget(p1.x);
+
+            gameActive = true;
+            document.getElementById('game-over-screen').classList.add('hidden');
+
+            aiAttackCooldown = 0.5;
+            aiDecisionTimer = 0;
+
+            updateHUD();
+            startTimer();
+        }
+
+        function endGame(winnerText) {
+            gameActive = false;
+            clearInterval(timerInterval);
+
+            setTimeout(() => {
+                document.getElementById('winner-announcement').innerText = winnerText;
+                document.getElementById('game-over-screen').classList.remove('hidden');
+                document.getElementById('game-over-screen').classList.add('flex');
+            }, 1000);
+        }
+
+        function restartGame() {
+            if (gameMode === 'vs-ai') {
+                selectedP2TypeIdx = Math.floor(Math.random() * CHAR_TYPES.length);
+                document.getElementById('p2-name').innerText = CHAR_TYPES[selectedP2TypeIdx].name + " (AI)";
+            }
+            resetStage(selectedP1TypeIdx, selectedP2TypeIdx);
+        }
+
+        function goToCharacterSelect() {
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.remove('flex');
+            document.getElementById('game-hud').classList.add('hidden');
+            document.getElementById('character-select').classList.remove('hidden');
+
+            characterSelectStep = 'p1';
+            updateSelectionPrompt();
+        }
+
+        // --- 실시간 메인 렌더링 루프 ---
+        let lastTime = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const now = performance.now();
+            const deltaTime = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+
+            if (gameActive) {
+                handlePlayer1Movement(deltaTime);
+                
+                if (gameMode === 'vs-player') {
+                    handlePlayer2Movement(deltaTime);
+                } else {
+                    handleAIMovement(deltaTime);
+                }
+
+                p1.update(deltaTime);
+                p2.update(deltaTime);
+
+                p1.lookAtTarget(p2.x);
+                p2.lookAtTarget(p1.x);
+
+                checkCollisions();
+                updateHUD();
+            } else {
+                if (p1) p1.update(deltaTime);
+                if (p2) p2.update(deltaTime);
+            }
+
+            updateParticles(deltaTime);
+            updateCamera();
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function() {
+            initEngine();
+            animate();
+            
+            selectGameMode('vs-ai');
+            selectDifficulty('normal');
+            selectStage(0);
+        };
+    </script>
+</body>
+</html>
